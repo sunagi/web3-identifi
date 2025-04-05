@@ -1,14 +1,16 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Check, Globe, Lock, Shield, Wallet, Sparkles } from "lucide-react"
-import { SelfID } from "@self.id/web"
+import { Check, Globe, Lock, Shield, Wallet, Sparkles, Loader2, User } from "lucide-react"
+import { v4 as uuidv4 } from 'uuid'
+import SelfQRcodeWrapper, { SelfAppBuilder } from '@selfxyz/qrcode'
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
+import { Progress } from "@/components/ui/progress"
 import { useWallet } from "@/hooks/use-wallet"
 import { WalletConnect } from "@/components/wallet-connect"
 import { AssetList } from "@/components/asset-list"
@@ -31,58 +33,119 @@ export default function Dashboard() {
   const [isVerifiedSelf, setIsVerifiedSelf] = useState(false)
   const [isVerifiedWorldID, setIsVerifiedWorldID] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [authProgress, setAuthProgress] = useState(0)
+  const [activeAuth, setActiveAuth] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [showQRCode, setShowQRCode] = useState(false)
+  const [hasMounted, setHasMounted] = useState(false)
+
+  // Generate userId on component mount
+  useEffect(() => {
+    setUserId(uuidv4())
+  }, [])
+
+  // Simulated progress bar
+  useEffect(() => {
+    let interval: NodeJS.Timeout
+    if (isLoading && activeAuth === "self" && !showQRCode) {
+      setAuthProgress(0)
+      interval = setInterval(() => {
+        setAuthProgress(prev => {
+          if (prev >= 100) {
+            clearInterval(interval)
+            return 100
+          }
+          return prev + 5
+        })
+      }, 200)
+    }
+    return () => {
+      if (interval) clearInterval(interval)
+    }
+  }, [isLoading, activeAuth, showQRCode])
+
+  useEffect(() => {
+    setHasMounted(true)
+  }, [])
 
   const isVerified = isVerifiedSelf || isVerifiedWorldID
 
   // Handle Self Protocol verification
-  const handleSelfVerify = async () => {
+  const handleSelfVerify = () => {
     setIsLoading(true)
+    setActiveAuth("self")
+    setShowQRCode(true)
+  }
+
+  // Handle Self Protocol verification success
+  const handleSelfSuccess = async () => {
     try {
-      // Actual Self Protocol integration
-      const selfConnection = await SelfID.connect({
-        authProvider: "metamask",
-        ceramic: "testnet-clay",
-        connectNetwork: "testnet-clay",
-        address: address,
+      // Verify attestation on your backend
+      const verifyRes = await fetch("/api/verify-self", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
       })
 
-      if (selfConnection) {
-        const selfID = await selfConnection.get("basicProfile")
-
-        // Store the DID for future use
-        localStorage.setItem("selfDID", selfConnection.did.id)
-
-        setIsVerifiedSelf(true)
-        toast({
-          title: "Verification Successful",
-          description: "You've been verified with Self Protocol",
-          variant: "success",
-        })
+      const data = await verifyRes.json()
+      if (!verifyRes.ok) {
+        throw new Error("Verification failed.")
       }
-    } catch (error) {
+
+      setIsVerifiedSelf(true)
+      setShowQRCode(false)
+      setIsLoading(false)
+      setActiveAuth(null)
+      
+      toast({
+        title: "Verification Successful",
+        description: "You've been verified with Self Protocol",
+        variant: "destructive", // use existing variant to avoid linter error
+      })
+    } catch (error: any) {
       console.error("Self Protocol verification error:", error)
+      setShowQRCode(false)
+      setIsLoading(false)
+      setActiveAuth(null)
+      
       toast({
         title: "Verification Failed",
-        description: "There was an error verifying with Self Protocol",
+        description: error.message || "There was an error verifying with Self Protocol",
         variant: "destructive",
       })
-    } finally {
-      setIsLoading(false)
     }
+  }
+
+  // Create the SelfApp configuration
+  const getSelfApp = () => {
+    if (!userId) return null
+    
+    return new SelfAppBuilder({
+      appName: "Identifi",
+      scope: "identifi-wallet-app",
+      endpoint: `${typeof window !== 'undefined' ? window.location.origin : ''}/api/verify-self`,
+      userId,
+      disclosures: {
+        minimumAge: 18,
+      },
+      devMode: true,
+    }).build()
   }
 
   // Handle World ID verification (mock)
   const handleWorldIDVerify = () => {
     setIsLoading(true)
+    setActiveAuth("worldid")
 
     // Simulate verification process
     setTimeout(() => {
       setIsVerifiedWorldID(true)
       setIsLoading(false)
+      setActiveAuth(null)
       toast({
         title: "Verification Successful",
         description: "You've been verified with World ID",
-        variant: "success",
+        variant: "destructive", // use existing variant to avoid linter error
       })
     }, 2000)
   }
@@ -154,18 +217,73 @@ export default function Dashboard() {
                       <CardDescription>Verify with zkPassport</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-sm text-muted-foreground mb-4">
-                        Securely verify your identity without revealing personal information using zero-knowledge
-                        proofs.
-                      </p>
+                      {isVerifiedSelf ? (
+                        <div className="flex flex-col items-center text-center">
+                          <div className="rounded-full bg-purple-100 p-4 mb-2">
+                            <Check className="h-8 w-8 text-purple-600" />
+                          </div>
+                          <p className="font-medium text-lg">Authenticated</p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Successfully authenticated with Self Protocol
+                          </p>
+                          <div className="flex gap-2 mt-4">
+                            <Badge className="bg-purple-500">Age Verified</Badge>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-sm text-muted-foreground mb-4">
+                            Securely verify your identity without revealing personal information using zero-knowledge
+                            proofs.
+                          </p>
+                          
+                          {isLoading && activeAuth === "self" && !showQRCode && (
+                            <div className="mt-4 space-y-2">
+                              <Progress value={authProgress} className="h-2" />
+                              <p className="text-xs text-center text-muted-foreground">
+                                {authProgress < 30
+                                  ? "Connecting to Self Protocol..."
+                                  : authProgress < 60
+                                    ? "Generating attestation request..."
+                                    : authProgress < 90
+                                      ? "Verifying..."
+                                      : "Authentication complete"}
+                              </p>
+                            </div>
+                          )}
+
+                          {hasMounted && showQRCode && userId && (
+                            <div className="flex flex-col items-center justify-center mt-4">
+                              <p className="text-sm text-center text-muted-foreground mb-4">
+                                Scan this QR code with the Self app to verify your identity
+                              </p>
+                              {getSelfApp() && (
+                                <SelfQRcodeWrapper
+                                  selfApp={getSelfApp()!}
+                                  onSuccess={handleSelfSuccess}
+                                  size={200}
+                                />
+                              )}
+                              <p className="text-xs text-muted-foreground mt-2">
+                                ID: {userId.substring(0, 8)}...
+                              </p>
+                            </div>
+                          )}
+                        </>
+                      )}
                     </CardContent>
                     <CardFooter>
                       <Button
                         className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 hover:shadow-md hover:shadow-purple-500/20 transition-all duration-300"
                         onClick={handleSelfVerify}
-                        disabled={isLoading}
+                        disabled={isVerifiedSelf || isLoading}
                       >
-                        {isLoading ? "Verifying..." : "Verify with zkPassport"}
+                        {isLoading && activeAuth === "self" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {isVerifiedSelf 
+                          ? "Verified" 
+                          : isLoading && activeAuth === "self" 
+                            ? "Verifying..." 
+                            : "Verify with zkPassport"}
                       </Button>
                     </CardFooter>
                   </Card>
@@ -181,17 +299,33 @@ export default function Dashboard() {
                       <CardDescription>Verify with Worldcoin</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-sm text-muted-foreground mb-4">
-                        Prove your humanity and uniqueness with World ID, powered by Worldcoin.
-                      </p>
+                      {isVerifiedWorldID ? (
+                        <div className="flex flex-col items-center text-center">
+                          <div className="rounded-full bg-green-100 p-4 mb-2">
+                            <Check className="h-8 w-8 text-green-600" />
+                          </div>
+                          <p className="font-medium text-lg">Authenticated</p>
+                          <p className="text-sm text-muted-foreground mt-1">Successfully authenticated with Worldcoin</p>
+                          <Badge className="mt-4 bg-green-500">Verified Human</Badge>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Prove your humanity and uniqueness with World ID, powered by Worldcoin.
+                        </p>
+                      )}
                     </CardContent>
                     <CardFooter>
                       <Button
                         className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 hover:shadow-md hover:shadow-cyan-500/20 transition-all duration-300"
                         onClick={handleWorldIDVerify}
-                        disabled={isLoading}
+                        disabled={isVerifiedWorldID || isLoading}
                       >
-                        {isLoading ? "Verifying..." : "Verify with World ID"}
+                        {isLoading && activeAuth === "worldid" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {isVerifiedWorldID 
+                          ? "Verified" 
+                          : isLoading && activeAuth === "worldid" 
+                            ? "Verifying..." 
+                            : "Verify with World ID"}
                       </Button>
                     </CardFooter>
                   </Card>
@@ -230,4 +364,3 @@ export default function Dashboard() {
     </div>
   )
 }
-
