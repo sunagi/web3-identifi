@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Wallet, ArrowUpRight, ArrowDownRight, RefreshCw, Loader2, Sparkles } from "lucide-react"
-import * as ethers from "ethers"
+import { ethers } from "ethers"
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -45,16 +45,7 @@ const ERC20_ABI = [
 // Helper function to format units safely
 const formatUnits = (value: any, decimals: number): string => {
   try {
-    // Try ethers v6 format
-    if (typeof ethers.formatUnits === "function") {
-      return ethers.formatUnits(value, decimals)
-    }
-    // Fall back to ethers v5 format
-    if (ethers.utils && typeof ethers.utils.formatUnits === "function") {
-      return ethers.utils.formatUnits(value, decimals)
-    }
-    // Manual fallback
-    return (Number(value) / Math.pow(10, decimals)).toString()
+    return ethers.formatUnits(value, decimals)
   } catch (error) {
     console.error("Error formatting units:", error)
     return "0"
@@ -64,16 +55,7 @@ const formatUnits = (value: any, decimals: number): string => {
 // Helper function to format ether safely
 const formatEther = (value: any): string => {
   try {
-    // Try ethers v6 format
-    if (typeof ethers.formatEther === "function") {
-      return ethers.formatEther(value)
-    }
-    // Fall back to ethers v5 format
-    if (ethers.utils && typeof ethers.utils.formatEther === "function") {
-      return ethers.utils.formatEther(value)
-    }
-    // Manual fallback (1 ether = 10^18 wei)
-    return (Number(value) / 1e18).toString()
+    return ethers.formatEther(value)
   } catch (error) {
     console.error("Error formatting ether:", error)
     return "0"
@@ -716,6 +698,10 @@ export function AssetList({ isVerified }: AssetListProps) {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (typeof window === 'undefined') {
+    return null;
   }
 
   return (

@@ -1,0 +1,29 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { Wallet, ArrowUpRight, ArrowDownRight, RefreshCw, Loader2, Sparkles } from "lucide-react"
+import { ethers } from "ethers" // v6のみに対応
+
+// ... 既存のコード ...
+
+// Helper function to format units safely
+const formatUnits = (value: any, decimals: number): string => {
+  try {
+    return ethers.formatUnits(value, decimals) // v6のformatUnitsを使用
+  } catch (error) {
+    console.error("Error formatting units:", error)
+    return "0"
+  }
+}
+
+// Helper function to format ether safely
+const formatEther = (value: any): string => {
+  try {
+    return ethers.formatEther(value) // v6のformatEtherを使用
+  } catch (error) {
+    console.error("Error formatting ether:", error)
+    return "0"
+  }
+}
+
+// ... 既存のコード ... 

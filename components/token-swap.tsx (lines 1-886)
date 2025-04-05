@@ -1,0 +1,46 @@
+"use client"
+
+import { useState, useEffect, useCallback } from "react"
+import { ArrowLeftRight, ChevronDown, ExternalLink, AlertCircle, Loader2, Zap, Sparkles } from "lucide-react"
+import { ethers } from "ethers" // v6のみに対応
+import { debounce } from "lodash"
+
+// Helper function to format units safely
+const formatUnits = (value: any, decimals: number): string => {
+  try {
+    return ethers.formatUnits(value, decimals) // v6のformatUnitsを使用
+  } catch (error) {
+    console.error("Error formatting units:", error)
+    return "0"
+  }
+}
+
+// Helper function to format ether safely
+const formatEther = (value: any): string => {
+  try {
+    return ethers.formatEther(value) // v6のformatEtherを使用
+  } catch (error) {
+    console.error("Error formatting ether:", error)
+    return "0"
+  }
+}
+
+// Helper function to parse units safely
+const parseUnits = (value: string, decimals: number): any => {
+  try {
+    return ethers.parseUnits(value, decimals) // v6のparseUnitsを使用
+  } catch (error) {
+    console.error("Error parsing units:", error)
+    return "0"
+  }
+}
+
+// Helper function to parse ether safely
+const parseEther = (value: string): any => {
+  try {
+    return ethers.parseEther(value) // v6のparseEtherを使用
+  } catch (error) {
+    console.error("Error parsing ether:", error)
+    return "0"
+  }
+} 
